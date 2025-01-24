@@ -21,6 +21,10 @@ class MiniImageNet(Dataset):
             pack = pickle.load(f, encoding='latin1')
         data = pack['data']
         label = pack['labels']
+        try:
+            self.label2catname = pack['label2catname']
+        except:
+            pass
 
         image_size = 80
         data = [Image.fromarray(x) for x in data]

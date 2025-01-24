@@ -8,7 +8,7 @@ eval_fs_epoch: 5
 
 model: classifier
 model_args:
-    encoder: resnet12
+    encoder: resnet12-aal
     encoder_args: {}
     classifier: linear-classifier 
     classifier_args: {n_classes: 64}

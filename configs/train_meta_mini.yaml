@@ -7,9 +7,9 @@ val_dataset_args: {split: val}
 
 model: meta-baseline
 model_args: 
-    encoder: resnet12
+    encoder: resnet12-aal
     encoder_args: {}
-load_encoder: ./save/classifier_mini-imagenet_resnet12/epoch-last.pth
+load_encoder: ./save/classifier_mini-imagenet_resnet12-aal/epoch-last.pth
 
 n_way: 5
 n_shot: 1

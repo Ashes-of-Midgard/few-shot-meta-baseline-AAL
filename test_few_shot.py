@@ -1,5 +1,8 @@
 import argparse
 import yaml
+import os
+import shutil
+import json
 
 import torch
 import torch.nn as nn
@@ -8,7 +11,9 @@ import numpy as np
 import scipy.stats
 from tqdm import tqdm
 from torch.utils.data import DataLoader
+from sklearn.manifold import TSNE
 from sklearn.metrics import roc_auc_score
+from matplotlib import pyplot as plt
 
 import datasets
 import models
@@ -26,6 +31,16 @@ def mean_confidence_interval(data, confidence=0.95):
 
 
 def main(config):
+    # save tsne
+    if args.tsne_dir is not None:
+        if not os.path.exists(os.path.join('save', args.tsne_dir)):
+            os.mkdir(os.path.join('save', args.tsne_dir))
+        else:
+            shutil.rmtree(os.path.join('save', args.tsne_dir))
+            os.mkdir(os.path.join('save', args.tsne_dir))
+    with open('imagenet_cat.json', 'r') as f:
+        WNID2name = json.load(f)
+
     # dataset
     dataset = datasets.make(config['dataset'], **config['dataset_args'])
     utils.log('dataset: {} (x{}), {}'.format(
@@ -67,13 +82,35 @@ def main(config):
     np.random.seed(0)
     va_lst = []
     for epoch in range(1, test_epochs + 1):
-        for data, _ in tqdm(loader, leave=False):
+        for batch_index, (data, label) in tqdm(enumerate(loader), leave=False):
             x_shot, x_query = fs.split_shot_query(
                     data.cuda(), n_way, n_shot, n_query,
                     ep_per_batch=ep_per_batch)
 
             with torch.no_grad():
                 if not args.sauc:
+                    # draw tSNE
+                    if args.tsne_dir is not None:
+                        feats = model.encoder(x_query.flatten(start_dim=0, end_dim=-4))
+                        assert len(feats) % (n_way*n_query) == 0
+                        for i in range(len(feats)//(n_way*n_query)):
+                            feats_episode = feats[i*n_way*n_query:(i+1)*n_way*n_query]
+                            tsne = TSNE(n_components=2).fit_transform(feats_episode.cpu())
+                            x_min, x_max = tsne.min(0), tsne.max(0)
+                            tsne_norm = (tsne - x_min) / (x_max - x_min)
+                            assert len(tsne_norm)==n_query*n_way
+                            tsne_split = [tsne_norm[n_query*i:n_query*(i+1)] for i in range(n_way)]
+                            colors = ['red', 'green', 'blue', 'brown', 'purple']
+                            plt.figure(figsize=(8, 8))
+                            label_names = set()
+                            for j in range(n_way):
+                                label_name = WNID2name[dataset.label2catname[label[i*n_way*n_query+j*n_query].item()]]
+                                plt.scatter(tsne_split[j][:, 0], tsne_split[j][:, 1], 50, color=colors[j], label=f'{label_name}')
+                                label_names.add(label_name)
+                            plt.legend(loc='upper left')
+                            if {'mixing bowl', 'malamute', 'scoreboard', 'crate', 'nematode'}.issubset(label_names):
+                                plt.savefig(os.path.join('save', args.tsne_dir, f'{label_names}_epoch_{epoch}_batch_{batch_index}.png'))
+                            plt.close()
                     logits = model(x_shot, x_query).view(-1, n_way)
                     label = fs.make_nk_label(n_way, n_query,
                             ep_per_batch=ep_per_batch).cuda()
@@ -105,7 +142,7 @@ def main(config):
         print('test epoch {}: acc={:.2f} +- {:.2f} (%), loss={:.4f} (@{})'.format(
                 epoch, aves['va'].item() * 100,
                 mean_confidence_interval(va_lst) * 100,
-                aves['vl'].item(), _[-1]))
+                aves['vl'].item(), label[-1]))
 
 
 if __name__ == '__main__':
@@ -115,6 +152,7 @@ if __name__ == '__main__':
     parser.add_argument('--test-epochs', type=int, default=10)
     parser.add_argument('--sauc', action='store_true')
     parser.add_argument('--gpu', default='0')
+    parser.add_argument('--tsne_dir', default=None)
     args = parser.parse_args()
 
     config = yaml.load(open(args.config, 'r'), Loader=yaml.FullLoader)
