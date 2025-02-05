@@ -104,11 +104,11 @@ def main(config):
                             plt.figure(figsize=(8, 8))
                             label_names = set()
                             for j in range(n_way):
-                                label_name = WNID2name[dataset.label2catname[label[i*n_way*n_query+j*n_query].item()]]
+                                label_name = WNID2name[dataset.label2catname[label[(i*n_way+j)*(n_query+n_shot)].item()]]
                                 plt.scatter(tsne_split[j][:, 0], tsne_split[j][:, 1], 50, color=colors[j], label=f'{label_name}')
                                 label_names.add(label_name)
                             plt.legend(loc='upper left')
-                            if {'mixing bowl', 'malamute', 'scoreboard', 'crate', 'nematode'}.issubset(label_names):
+                            if {'golden retriever', 'ant', 'crate', 'mixing bowl', 'nematode'}.issubset(label_names):
                                 plt.savefig(os.path.join('save', args.tsne_dir, f'{label_names}_epoch_{epoch}_batch_{batch_index}.png'))
                             plt.close()
                     logits = model(x_shot, x_query).view(-1, n_way)
